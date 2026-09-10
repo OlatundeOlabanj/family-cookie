@@ -1,0 +1,6 @@
+target/
+node_modules/
+.test-wallets/
+test-ledger/
+*.log
+.env
