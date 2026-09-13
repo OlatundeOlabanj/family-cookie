@@ -7,6 +7,7 @@ import {
   contributeToGoal,
   fetchGoal,
   fetchGoalBalance,
+  fetchGoalActivity,
   describeTransactionError,
 } from "./anchor.js";
 
@@ -141,16 +142,29 @@ function renderWalletPicker(handles) {
 }
 
 async function connectWith(handle) {
+  const btn = el("connect-btn");
+  const originalLabel = btn.innerHTML;
   try {
     clearStatusBanner();
-    await handle.connect();
+    btn.disabled = true;
+    btn.textContent = "Waiting for wallet...";
+    await withTimeout(handle.connect(), 30000, "Wallet did not respond within 30 seconds. Check that it's unlocked and try again.");
     state.wallet = handle;
     el("wallet-picker-panel").classList.add("hidden");
     onWalletConnected();
   } catch (err) {
     const described = describeTransactionError(err);
     showStatusBanner(described.kind === "rejected" ? "warn" : "error", described.message);
+    btn.disabled = false;
+    btn.innerHTML = originalLabel;
   }
+}
+
+function withTimeout(promise, ms, timeoutMessage) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(timeoutMessage)), ms)),
+  ]);
 }
 
 function onWalletConnected() {
@@ -159,6 +173,9 @@ function onWalletConnected() {
   el("connect-btn").classList.add("hidden");
   el("disconnect-btn").classList.remove("hidden");
   el("app-main").classList.remove("hidden");
+  const bar = document.querySelector(".wallet-bar");
+  bar.classList.add("just-connected");
+  setTimeout(() => bar.classList.remove("just-connected"), 1600);
   tryRestoreForCurrentWallet();
 }
 
@@ -189,6 +206,8 @@ function disconnect() {
 function resetFlowUI() {
   el("step-fund").classList.add("hidden");
   el("step-contribute").classList.add("hidden");
+  el("goal-ledger").classList.add("hidden");
+  el("activity-panel").classList.add("hidden");
   el("vault-details").classList.add("hidden");
   el("step-create").classList.remove("hidden");
   el("step-create").classList.add("active");
@@ -197,6 +216,8 @@ function resetFlowUI() {
 function revealPostCreateSteps() {
   el("step-fund").classList.remove("hidden");
   el("step-contribute").classList.remove("hidden");
+  el("goal-ledger").classList.remove("hidden");
+  el("activity-panel").classList.remove("hidden");
   el("vault-details").classList.remove("hidden");
   el("step-create").classList.remove("active");
   el("step-create").classList.add("done");
@@ -235,6 +256,35 @@ async function refreshGoalDisplay() {
     el("goal-progress-fill").style.width = `${pct}%`;
   } catch (err) {
     // Non-fatal - balance display just stays at its last known value.
+  }
+  refreshActivity();
+}
+
+async function refreshActivity() {
+  if (!state.goalTokenAccount) return;
+  const list = el("activity-list");
+  const empty = el("activity-empty");
+  try {
+    const decimals = currentCluster().goalMintDecimals;
+    const events = await fetchGoalActivity(state.connection, state.goalTokenAccount);
+    if (events.length === 0) {
+      list.innerHTML = "";
+      empty.classList.remove("hidden");
+      return;
+    }
+    empty.classList.add("hidden");
+    list.innerHTML = events
+      .map((event) => {
+        const amount = (Number(event.amountRaw) / 10 ** decimals).toLocaleString();
+        const when = event.blockTime
+          ? new Date(event.blockTime * 1000).toLocaleString()
+          : "Pending timestamp";
+        const url = currentCluster().explorerTxUrl(event.signature);
+        return `<div class="activity-item"><span class="amount">+${amount} ${currentCluster().goalMintLabel}</span><span class="when">${when} - <a href="${url}" target="_blank" rel="noopener">view</a></span></div>`;
+      })
+      .join("");
+  } catch (err) {
+    // Non-fatal - the ledger balance above is the source of truth either way.
   }
 }
 
@@ -355,11 +405,15 @@ function init() {
   el("program-link").href = currentCluster().explorerAddressUrl(PROGRAM_ID);
 
   el("connect-btn").addEventListener("click", () => {
-    const handles = discoverWallets();
-    if (handles.length === 1) {
-      connectWith(handles[0]);
-    } else {
-      renderWalletPicker(handles);
+    try {
+      const handles = discoverWallets();
+      if (handles.length === 1) {
+        connectWith(handles[0]);
+      } else {
+        renderWalletPicker(handles);
+      }
+    } catch (err) {
+      showStatusBanner("error", `Could not check for installed wallets: ${err.message || err}`);
     }
   });
   el("disconnect-btn").addEventListener("click", disconnect);

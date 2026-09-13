@@ -3,6 +3,7 @@
 // Made by TJS Code
 
 const { web3 } = window.FW_VENDOR;
+const { Buffer } = window;
 
 const CONNECT_FEATURES = ["standard:connect", "solana:connect"];
 const DISCONNECT_FEATURES = ["standard:disconnect", "solana:disconnect"];

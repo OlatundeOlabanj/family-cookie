@@ -18,6 +18,7 @@
 // Made by TJS Code
 
 const { web3 } = window.FW_VENDOR;
+const { Buffer } = window;
 
 export const SECP256R1_PROGRAM_ID = new web3.PublicKey("Secp256r1SigVerify1111111111111111111111111");
 

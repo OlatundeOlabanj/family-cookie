@@ -5,7 +5,6 @@
   "scripts": {
     "setup-wallets": "ts-node scripts/setup-test-wallets.ts",
     "check-funding": "ts-node scripts/check-funding.ts",
-    "check-suite-funding": "ts-node scripts/check-suite-funding.ts",
     "test": "ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
   },
   "dependencies": {

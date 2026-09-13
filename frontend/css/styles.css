@@ -1,17 +1,20 @@
 /* Family Cookie frontend styles. Made by TJS Code */
 
 :root {
-  --bg: #05080f;
-  --surface: #0c111d;
-  --surface-raised: #111827;
-  --border: #1d2537;
-  --border-strong: #2a3450;
-  --text: #eef1f6;
-  --text-muted: #8b93a7;
-  --text-faint: #5b6376;
-  --accent: #f2b544;
-  --accent-dim: #a97e2c;
-  --accent-ink: #201404;
+  /* Token system from the design plan: ink/panel/line/ash/paper/gold
+     are the six deliberate brand tokens. success/error stay
+     functional-only (status banners), never decorative. */
+  --bg: #05070c;
+  --surface: #0e1420;
+  --surface-raised: #131b2b;
+  --border: #1f2937;
+  --border-strong: #2c3850;
+  --text: #edf1f6;
+  --text-muted: #8a93a6;
+  --text-faint: #5a6376;
+  --accent: #e8a33d;
+  --accent-dim: #a97428;
+  --accent-ink: #1c1204;
   --success: #52b788;
   --error: #e2604f;
   --radius: 15px;
@@ -85,6 +88,17 @@ body {
   color: var(--text-muted);
 }
 
+.network-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.network-field label {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
 .cluster-select {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -93,6 +107,110 @@ body {
   font-size: 12px;
   padding: 7px 10px;
   border-radius: var(--radius-sm);
+}
+
+/* --- How it works --- */
+
+.how-it-works {
+  list-style: none;
+  margin: 0 0 26px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.how-it-works li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* --- Goal ledger (deliberately not styled like the step cards) --- */
+
+.ledger {
+  padding: 18px 4px 22px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+
+.ledger-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+/* --- Contribution history (read from chain RPC, not CookieScan) --- */
+
+.activity {
+  margin-bottom: 20px;
+}
+
+.activity-note {
+  font-size: 12.5px;
+  color: var(--text-faint);
+  margin: 0 0 12px;
+  max-width: 46ch;
+}
+
+.activity-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.activity-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.activity-item:last-child {
+  border-bottom: none;
+}
+
+.activity-item .amount {
+  color: var(--text);
+}
+
+.activity-item .when {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.activity-item a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.activity-item a:hover {
+  text-decoration: underline;
+}
+
+.activity-empty {
+  font-size: 13px;
+  color: var(--text-faint);
+  padding: 6px 0;
 }
 
 /* --- Hero / explainer --- */
@@ -128,6 +246,15 @@ body {
   border-radius: var(--radius);
   padding: 14px 16px;
   margin-bottom: 20px;
+  /* The one deliberate transition moment on this page: the bar's
+     border tone settles when the wallet connects, instead of every
+     element getting its own small fade. */
+  transition: border-color 0.6s ease, background-color 0.6s ease;
+}
+
+.wallet-bar.just-connected {
+  border-color: var(--accent-dim);
+  background: rgba(242, 181, 68, 0.06);
 }
 
 .wallet-status {
@@ -143,6 +270,7 @@ body {
   border-radius: 50%;
   background: var(--text-faint);
   flex-shrink: 0;
+  transition: background-color 0.6s ease;
 }
 
 .status-dot.connected {
@@ -172,11 +300,6 @@ button {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  transition: opacity 0.15s ease, transform 0.05s ease;
-}
-
-button:active {
-  transform: scale(0.98);
 }
 
 button:disabled {
@@ -190,7 +313,7 @@ button:disabled {
 }
 
 .btn-primary:hover:not(:disabled) {
-  opacity: 0.92;
+  background: #efb45c;
 }
 
 .btn-secondary {
@@ -302,7 +425,9 @@ button svg {
 .field input:focus,
 .field select:focus,
 button:focus-visible,
-.cluster-select:focus-visible {
+.cluster-select:focus-visible,
+a:focus-visible,
+.wallet-option:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
@@ -524,3 +649,23 @@ button:focus-visible,
     font-size: 30px;
   }
 }
+
+/* Audited by hand at a 375px viewport (no real browser available in
+   this environment to visually confirm - this is computed from actual
+   padding/gap/font-size values, not assumed). Two real overflow risks
+   at that width: the header's brand text + network selector compete
+   for the same row, and the two-up date/target field row gets tight
+   enough to be worth a safety stack. */
+@media (max-width: 420px) {
+  .app-header {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+  .brand-tag {
+    display: none;
+  }
+  .field-row {
+    flex-direction: column;
+  }
+}
+

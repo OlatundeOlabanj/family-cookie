@@ -17,23 +17,32 @@
   <header class="app-header">
     <div class="brand">
       <svg class="brand-mark" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <rect width="32" height="32" rx="7" fill="#0c111d"/>
-        <path d="M11 9h10l1 3.2v11.3a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V12.2L11 9z" fill="none" stroke="#f2b544" stroke-width="2" stroke-linejoin="round"/>
-        <path d="M13 9V6.6a3 3 0 0 1 6 0V9" fill="none" stroke="#f2b544" stroke-width="2" stroke-linecap="round"/>
-        <path d="M10.5 18h11" stroke="#f2b544" stroke-width="1.6" stroke-linecap="round"/>
+        <rect width="32" height="32" rx="7" fill="#0e1420"/>
+        <path d="M11 9h10l1 3.2v11.3a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V12.2L11 9z" fill="none" stroke="#e8a33d" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M13 9V6.6a3 3 0 0 1 6 0V9" fill="none" stroke="#e8a33d" stroke-width="2" stroke-linecap="round"/>
+        <path d="M10.5 18h11" stroke="#e8a33d" stroke-width="1.6" stroke-linecap="round"/>
       </svg>
       <div class="brand-text">
         <span class="brand-name">Family Cookie</span>
-        <span class="brand-tag">Savings goals, passkey-authorized</span>
+        <span class="brand-tag">Passkey-authorized savings</span>
       </div>
     </div>
-    <select id="cluster-select" class="cluster-select" aria-label="Network"></select>
+    <div class="network-field">
+      <label for="cluster-select">Network</label>
+      <select id="cluster-select" class="cluster-select"></select>
+    </div>
   </header>
 
   <section class="hero">
     <h1>Put money toward a goal, not into a trading screen.</h1>
     <p>Create a savings goal on-chain, fund it from your wallet, then release money into the goal with a device passkey instead of a routine wallet click. No swaps, no price feeds, no order book.</p>
   </section>
+
+  <ol class="how-it-works">
+    <li><span class="step-num">1</span> Connect a wallet</li>
+    <li><span class="step-num">2</span> Create a savings goal</li>
+    <li><span class="step-num">3</span> Contribute, approved with a device passkey</li>
+  </ol>
 
   <div id="origin-banner" class="banner banner-warn hidden">
     <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 2 1 17h18L10 2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 8v4M10 14.2v.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
@@ -108,6 +117,19 @@
       <div id="fund-status" class="tx-status hidden"></div>
     </section>
 
+    <div id="goal-ledger" class="ledger hidden">
+      <div class="ledger-label">Goal progress</div>
+      <div class="goal-balance"><span id="goal-current">0</span> <span class="of">/ <span id="goal-target-readout">0</span> <span id="goal-currency-label"></span></span></div>
+      <div class="progress-track"><div id="goal-progress-fill" class="progress-fill" style="width:0%"></div></div>
+    </div>
+
+    <div id="activity-panel" class="activity hidden">
+      <div class="ledger-label">Contribution history</div>
+      <p class="activity-note">Read directly from the chain: real transactions into this goal's token account, not a summary or an estimate.</p>
+      <div id="activity-list" class="activity-list"></div>
+      <div id="activity-empty" class="activity-empty hidden">No contributions yet.</div>
+    </div>
+
     <section id="step-contribute" class="step hidden">
       <div class="step-head">
         <span class="step-number">03</span>
@@ -115,10 +137,7 @@
       </div>
       <p class="step-desc">Moves funds from your holding account into the goal. Authorized by your device passkey, not by the connected wallet's own signature.</p>
 
-      <div class="goal-balance"><span id="goal-current">0</span> <span class="of">/ <span id="goal-target-readout">0</span> <span id="goal-currency-label"></span></span></div>
-      <div class="progress-track"><div id="goal-progress-fill" class="progress-fill" style="width:0%"></div></div>
-
-      <div class="field" style="margin-top:16px">
+      <div class="field">
         <label for="contribute-amount">Amount to contribute</label>
         <input id="contribute-amount" type="number" min="0" step="0.01" placeholder="50" />
       </div>
@@ -143,6 +162,7 @@
 
 </div>
 
+<script src="js/vendor/fw-buffer-shim.bundle.js"></script>
 <script src="js/vendor/fw-vendor.bundle.js"></script>
 <script src="js/idl.js"></script>
 <script type="module" src="js/app.js"></script>

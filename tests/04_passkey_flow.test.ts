@@ -29,7 +29,7 @@ describe("family-wallet: passkey-authorized flow (contribute, withdraw, recurrin
   const connection = provider.connection;
   const mainWallet = (provider.wallet as anchor.Wallet).payer;
 
-  const primaryFunder = loadTestWallet("primary");
+  const bank = loadTestWallet("bank"); // dedicated funding source, not a persona wallet
   const guardian = loadTestWallet("guardian");
   const feeDestinationOwner = loadTestWallet("fee-destination");
 
@@ -82,10 +82,10 @@ describe("family-wallet: passkey-authorized flow (contribute, withdraw, recurrin
 
     walletAuthorityUsdcAta = await ensureAta(connection, mainWallet, DEVNET_USDC_MINT, walletAuthorityPda);
     const fundAmount = 3 * 10 ** USDC_DECIMALS;
-    const primaryFunderAta = await ensureAta(connection, primaryFunder, DEVNET_USDC_MINT, primaryFunder.publicKey);
+    const bankAta = await ensureAta(connection, bank, DEVNET_USDC_MINT, bank.publicKey);
     await provider.sendAndConfirm(
-      new Transaction().add(createTransferInstruction(primaryFunderAta, walletAuthorityUsdcAta, primaryFunder.publicKey, fundAmount)),
-      [primaryFunder]
+      new Transaction().add(createTransferInstruction(bankAta, walletAuthorityUsdcAta, bank.publicKey, fundAmount)),
+      [bank]
     );
   });
 

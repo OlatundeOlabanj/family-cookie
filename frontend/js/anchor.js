@@ -15,6 +15,7 @@ import {
 } from "./passkey.js";
 
 const { web3, anchor, splToken } = window.FW_VENDOR;
+const { Buffer } = window;
 const PROGRAM_PUBKEY = new web3.PublicKey(PROGRAM_ID);
 
 // A placeholder, deliberately-unusable partner device slot. This build
@@ -301,6 +302,61 @@ export async function fetchGoalBalance(connection, goalTokenAccount) {
 export async function fetchGoal(connection, walletHandle, goalPda) {
   const program = getProgram(connection, walletHandle);
   return await program.account.savingsGoal.fetch(goalPda);
+}
+
+// Real on-chain contribution history for a goal, read straight from the
+// chain's own RPC (getSignaturesForAddress + getParsedTransaction) - not
+// a CookieScan integration. CookieScan (cookiescan.io) has no discoverable
+// public API as of this build (checked: no docs page, no api.cookiescan.io
+// or docs.cookiescan.io found), so this deliberately does not claim to be
+// one. It reads the goal's own token account history and reports the
+// SPL transfers that landed in it, which is exactly what "money moved
+// into this goal" means on-chain, regardless of which explorer indexes it.
+export async function fetchGoalActivity(connection, goalTokenAccount, limit = 15) {
+  const signatures = await connection.getSignaturesForAddress(goalTokenAccount, { limit }, "confirmed");
+  const events = [];
+
+  for (const sigInfo of signatures) {
+    if (sigInfo.err) continue; // failed transactions moved nothing
+    const tx = await connection.getParsedTransaction(sigInfo.signature, {
+      maxSupportedTransactionVersion: 0,
+      commitment: "confirmed",
+    });
+    if (!tx) continue;
+
+    const amount = extractTransferAmountInto(tx, goalTokenAccount);
+    if (amount === null) continue; // not a transfer into this account (e.g. account creation)
+
+    events.push({
+      signature: sigInfo.signature,
+      blockTime: sigInfo.blockTime ?? tx.blockTime ?? null,
+      amountRaw: amount,
+    });
+  }
+
+  return events;
+}
+
+// Scans a parsed transaction's instructions (including inner instructions,
+// since contribute() moves funds via a CPI, not a top-level instruction)
+// for an SPL token transfer whose destination is goalTokenAccount, and
+// returns the raw token amount moved, or null if none is found.
+function extractTransferAmountInto(tx, goalTokenAccount) {
+  const targetStr = goalTokenAccount.toBase58();
+  const allInstructions = [
+    ...(tx.transaction?.message?.instructions ?? []),
+    ...(tx.meta?.innerInstructions ?? []).flatMap((group) => group.instructions),
+  ];
+
+  for (const ix of allInstructions) {
+    const parsed = ix.parsed;
+    if (!parsed || (parsed.type !== "transferChecked" && parsed.type !== "transfer")) continue;
+    const info = parsed.info;
+    if (info.destination !== targetStr) continue;
+    if (parsed.type === "transferChecked") return BigInt(info.tokenAmount.amount);
+    return BigInt(info.amount);
+  }
+  return null;
 }
 
 // --- Error decoding ----------------------------------------------------
