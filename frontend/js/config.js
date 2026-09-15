@@ -39,7 +39,7 @@ export const CLUSTERS = {
   },
 };
 
-export const DEFAULT_CLUSTER = "devnet";
+export const DEFAULT_CLUSTER = "cookiechain";
 
 // Anchor discriminator prefix bytes are computed at runtime by the
 // bundled @coral-xyz/anchor BorshInstructionCoder from js/idl.js, not
