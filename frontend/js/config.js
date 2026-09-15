@@ -2,7 +2,7 @@
 // Made by TJS Code
 
 // Program ID is the same across every cluster below (see Anchor.toml).
-export const PROGRAM_ID = "6apQZUxBwpBbFNiBpYzGeMBQJ8328xrrsQ3aRcQhM2Av";
+export const PROGRAM_ID = "6tyoXrDQiqs6PCfc94sP1vV5v4h81DsWXaU5uCpwke9w";
 
 // Hosting is decided: this must match the four `expected_origin`
 // literals in programs/family-wallet/src/instructions/*.rs
@@ -28,20 +28,12 @@ export const CLUSTERS = {
   cookiechain: {
     label: "Cookie Chain",
     rpcUrl: "https://rpc.cookiescan.io",
-    // TODO-CONFIRM: Cookie Chain's real token landscape is unknown from
-    // here. Two open questions before this cluster is usable for real:
-    //   1. Does Cookie Chain's SVM fork support the secp256r1 precompile
-    //      (program id Secp256r1SigVerify1111111111111111111111111)?
-    //      contribute/withdraw/authorize_recurring_delegate/
-    //      cancel_recurring_delegate all depend on it. Cheapest check:
-    //      query that program id against https://rpc.cookiescan.io
-    //      with getAccountInfo before spending real COOK on a deploy.
-    //   2. What SPL mint should a savings goal actually be denominated
-    //      in on Cookie Chain - a bridged/native USDC, or wrapped COOK?
-    //      Placeholder below is NOT a real deployed mint.
-    goalMint: "TODO_CONFIRM_COOKIE_CHAIN_GOAL_MINT",
+    // No bridged stablecoin exists on Cookie Chain; native COOK is the
+    // only genuinely liquid currency, so goals are denominated in
+    // wrapped-native COOK via the standard SVM native-mint sentinel.
+    goalMint: "So11111111111111111111111111111111111111112",
     goalMintDecimals: 6,
-    goalMintLabel: "TBD",
+    goalMintLabel: "COOK",
     explorerTxUrl: (sig) => `https://cookiescan.io/tx/${sig}`,
     explorerAddressUrl: (addr) => `https://cookiescan.io/address/${addr}`,
   },

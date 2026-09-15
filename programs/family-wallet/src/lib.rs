@@ -16,7 +16,7 @@ use state::{Currency, FeeTier, Frequency};
 // TODO: replace with the real deployed program ID once `anchor keys sync`
 // (or `solana address -k target/deploy/family_wallet-keypair.json`) has
 // been run on your machine — this placeholder will not deploy correctly.
-declare_id!("6tyoXrDQiqs6PCfc94sP1vV5v4h81DsWXaU5uCpwke9w");
+declare_id!("6apQZUxBwpBbFNiBpYzGeMBQJ8328xrrsQ3aRcQhM2Av");
 
 #[program]
 pub mod family_wallet {

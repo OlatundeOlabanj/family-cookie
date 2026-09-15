@@ -17,154 +17,77 @@
   <header class="app-header">
     <div class="brand">
       <svg class="brand-mark" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <rect width="32" height="32" rx="7" fill="#0e1420"/>
-        <path d="M11 9h10l1 3.2v11.3a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V12.2L11 9z" fill="none" stroke="#e8a33d" stroke-width="2" stroke-linejoin="round"/>
-        <path d="M13 9V6.6a3 3 0 0 1 6 0V9" fill="none" stroke="#e8a33d" stroke-width="2" stroke-linecap="round"/>
-        <path d="M10.5 18h11" stroke="#e8a33d" stroke-width="1.6" stroke-linecap="round"/>
+        <rect width="32" height="32" rx="9" fill="#1E2638"/>
+        <path d="M11 9h10l1 3.2v11.3a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V12.2L11 9z" fill="none" stroke="#F3F4F6" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M13 9V6.6a3 3 0 0 1 6 0V9" fill="none" stroke="#F3F4F6" stroke-width="2" stroke-linecap="round"/>
+        <path d="M10.5 18h11" stroke="#F3F4F6" stroke-width="1.6" stroke-linecap="round"/>
       </svg>
       <div class="brand-text">
         <span class="brand-name">Family Cookie</span>
-        <span class="brand-tag">Passkey-authorized savings</span>
+        <span class="brand-tag">No wallet needed to browse</span>
       </div>
     </div>
-    <div class="network-field">
-      <label for="cluster-select">Network</label>
-      <select id="cluster-select" class="cluster-select"></select>
-    </div>
+    <a href="dashboard.html" class="btn-primary">Open dashboard</a>
   </header>
 
-  <section class="hero">
-    <h1>Put money toward a goal, not into a trading screen.</h1>
-    <p>Create a savings goal on-chain, fund it from your wallet, then release money into the goal with a device passkey instead of a routine wallet click. No swaps, no price feeds, no order book.</p>
+  <section class="hero-band">
+    <div class="hero-copy">
+      <h1>Put money toward a goal, not into a trading screen.</h1>
+      <p>Create a savings goal on-chain, fund it from your wallet, then release money into the goal with a device passkey instead of a routine wallet click. No swaps, no price feeds, no order book.</p>
+
+      <ol class="how-it-works">
+        <li><span class="step-num">1</span> Connect a wallet</li>
+        <li><span class="step-num">2</span> Create a savings goal</li>
+        <li><span class="step-num">3</span> Contribute, approved with a device passkey</li>
+      </ol>
+
+      <a href="dashboard.html" class="btn-primary">Open dashboard</a>
+    </div>
+
+    <div class="hero-illustration" aria-hidden="true">
+      <svg class="crumb-mark" viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="6" cy="8" r="3" fill="#9CA3AF" opacity="0.4"/>
+        <circle cx="18" cy="4" r="4.5" fill="#F3F4F6" opacity="0.5"/>
+        <circle cx="30" cy="10" r="2.5" fill="#10B981" opacity="0.5"/>
+      </svg>
+      <div class="example-card is-example float-el">
+        <div class="example-label">Example goal, not live data</div>
+        <div class="example-name">New laptop fund</div>
+        <div class="example-balance">$340<span class="of"> / $500</span></div>
+        <div class="progress-track"><div class="progress-fill" style="width:68%"></div></div>
+        <div class="example-foot">
+          <span class="example-tag">Passkey-authorized</span>
+          <span class="example-tag">On-chain</span>
+        </div>
+      </div>
+    </div>
   </section>
 
-  <ol class="how-it-works">
-    <li><span class="step-num">1</span> Connect a wallet</li>
-    <li><span class="step-num">2</span> Create a savings goal</li>
-    <li><span class="step-num">3</span> Contribute, approved with a device passkey</li>
-  </ol>
-
-  <div id="origin-banner" class="banner banner-warn hidden">
-    <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 2 1 17h18L10 2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 8v4M10 14.2v.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-    <span id="origin-banner-text"></span>
-  </div>
-
-  <div class="wallet-bar">
-    <div class="wallet-status">
-      <span id="status-dot" class="status-dot"></span>
-      <span id="wallet-address" class="wallet-address">Not connected</span>
+  <section class="differentiators">
+    <div class="diff-card">
+      <div class="diff-card-title">No price feeds</div>
+      <div class="diff-card-desc">Nothing to trade or watch tick. Just a goal moving forward.</div>
     </div>
-    <div id="wallet-actions">
-      <button id="connect-btn" class="btn-primary">
-        <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="6" width="16" height="11" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M2 9h16" stroke="currentColor" stroke-width="1.5"/><circle cx="14" cy="12.5" r="1" fill="currentColor"/><path d="M5 6V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1" stroke="currentColor" stroke-width="1.5"/></svg>
-        Connect wallet
-      </button>
-      <button id="disconnect-btn" class="btn-icon hidden" aria-label="Disconnect">
-        <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 4H4v12h3M13 14l3-4-3-4M16 10H8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
+    <div class="diff-card">
+      <div class="diff-card-title">Real passkey auth</div>
+      <div class="diff-card-desc">A device signature approves each release, not a routine wallet click.</div>
     </div>
-  </div>
-
-  <div id="wallet-picker-panel" class="step hidden">
-    <div class="step-head"><span class="step-title">Choose a wallet</span></div>
-    <p class="step-desc" id="wallet-picker-desc">Nightly is required for this build. Other detected wallets are listed too.</p>
-    <div id="wallet-picker-list" class="wallet-picker"></div>
-  </div>
-
-  <main id="app-main" class="hidden">
-
-    <div id="status-banner" class="hidden"></div>
-
-    <section id="step-create" class="step active">
-      <div class="step-head">
-        <span class="step-number">01</span>
-        <span class="step-title">Create your vault and a goal</span>
-      </div>
-      <p class="step-desc">Registers a device passkey (a prompt from your browser or platform, not this site) and creates one savings goal on-chain. This demo registers a single device; the vault's partner-device slot is left unusable.</p>
-
-      <div class="field">
-        <label for="goal-name">Goal name</label>
-        <input id="goal-name" type="text" maxlength="32" placeholder="New laptop fund" />
-      </div>
-      <div class="field-row">
-        <div class="field">
-          <label for="goal-target">Target amount</label>
-          <input id="goal-target" type="number" min="0" step="0.01" placeholder="500" />
-        </div>
-        <div class="field">
-          <label for="goal-deadline">Deadline</label>
-          <input id="goal-deadline" type="date" />
-        </div>
-      </div>
-
-      <button id="create-btn" class="btn-primary btn-block">Register passkey and create goal</button>
-      <div id="create-status" class="tx-status hidden"></div>
-    </section>
-
-    <section id="step-fund" class="step hidden">
-      <div class="step-head">
-        <span class="step-number">02</span>
-        <span class="step-title">Fund your wallet</span>
-      </div>
-      <p class="step-desc">Moves funds from your connected wallet into your family wallet's holding account. A standard wallet signature, no passkey needed for this step.</p>
-
-      <div class="field">
-        <label for="fund-amount">Amount</label>
-        <input id="fund-amount" type="number" min="0" step="0.01" placeholder="100" />
-      </div>
-
-      <button id="fund-btn" class="btn-primary btn-block">Fund wallet</button>
-      <div id="fund-status" class="tx-status hidden"></div>
-    </section>
-
-    <div id="goal-ledger" class="ledger hidden">
-      <div class="ledger-label">Goal progress</div>
-      <div class="goal-balance"><span id="goal-current">0</span> <span class="of">/ <span id="goal-target-readout">0</span> <span id="goal-currency-label"></span></span></div>
-      <div class="progress-track"><div id="goal-progress-fill" class="progress-fill" style="width:0%"></div></div>
+    <div class="diff-card">
+      <div class="diff-card-title">Real chain activity</div>
+      <div class="diff-card-desc">Contribution history is read straight from the chain, not a summary.</div>
     </div>
+  </section>
 
-    <div id="activity-panel" class="activity hidden">
-      <div class="ledger-label">Contribution history</div>
-      <p class="activity-note">Read directly from the chain: real transactions into this goal's token account, not a summary or an estimate.</p>
-      <div id="activity-list" class="activity-list"></div>
-      <div id="activity-empty" class="activity-empty hidden">No contributions yet.</div>
-    </div>
-
-    <section id="step-contribute" class="step hidden">
-      <div class="step-head">
-        <span class="step-number">03</span>
-        <span class="step-title">Contribute to the goal</span>
-      </div>
-      <p class="step-desc">Moves funds from your holding account into the goal. Authorized by your device passkey, not by the connected wallet's own signature.</p>
-
-      <div class="field">
-        <label for="contribute-amount">Amount to contribute</label>
-        <input id="contribute-amount" type="number" min="0" step="0.01" placeholder="50" />
-      </div>
-
-      <button id="contribute-btn" class="btn-primary btn-block">Approve with passkey and contribute</button>
-      <div id="contribute-status" class="tx-status hidden"></div>
-    </section>
-
-    <section id="vault-details" class="step hidden">
-      <div class="step-head"><span class="step-title">Vault details</span></div>
-      <div class="readout"><span class="k">Vault</span><span class="v mono" id="detail-vault"></span></div>
-      <div class="readout"><span class="k">Goal</span><span class="v mono" id="detail-goal"></span></div>
-      <div class="readout"><span class="k">Goal token account</span><span class="v mono" id="detail-goal-ata"></span></div>
-    </section>
-
-  </main>
+  <section class="passkey-explainer">
+    <h2>How the passkey step actually works</h2>
+    <p>Your connected wallet creates the goal and moves funds into a holding account. Releasing funds out of a goal is a separate step: your device (fingerprint, face, or PIN) signs that specific release with a secp256r1 passkey. The wallet alone cannot move goal funds on its own; the program checks a live device signature before anything moves.</p>
+  </section>
 
   <footer class="app-footer">
     <span>Made by TJS Code</span>
-    <a id="program-link" href="#" target="_blank" rel="noopener">Program on explorer</a>
+    <a href="https://explorer.solana.com/address/6apQZUxBwpBbFNiBpYzGeMBQJ8328xrrsQ3aRcQhM2Av?cluster=devnet" target="_blank" rel="noopener">Program on explorer</a>
   </footer>
 
 </div>
-
-<script src="js/vendor/fw-buffer-shim.bundle.js"></script>
-<script src="js/vendor/fw-vendor.bundle.js"></script>
-<script src="js/idl.js"></script>
-<script type="module" src="js/app.js"></script>
 </body>
 </html>

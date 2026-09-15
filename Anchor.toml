@@ -2,23 +2,33 @@
 anchor_version = "1.1.1"
 
 [features]
-resolution = true
+seeds = false
 skip-lint = false
 
-[programs.devnet]
-family_wallet = "6tyoXrDQiqs6PCfc94sP1vV5v4h81DsWXaU5uCpwke9w"
-
-[programs."https://rpc.cookiescan.io"]
-family_wallet = "6apQZUxBwpBbFNiBpYzGeMBQJ8328xrrsQ3aRcQhM2Av"
-
+# Program ID below is the real one: it matches declare_id!() in lib.rs,
+# the built IDL, and target/deploy/family_wallet-keypair.json. The old
+# value here (CbKzXFf3LoScoCuqZAkhZVFutDJVjsxbBKz72FqqSvns) did not match
+# any of those and has been corrected.
 [programs.localnet]
 family_wallet = "6apQZUxBwpBbFNiBpYzGeMBQJ8328xrrsQ3aRcQhM2Av"
 
+[programs.devnet]
+family_wallet = "6apQZUxBwpBbFNiBpYzGeMBQJ8328xrrsQ3aRcQhM2Av"
+
+# Cookie Chain: live SVM-compatible chain, not a testnet. Same program ID
+# as devnet, since this is the same build deployed to a different cluster.
+# Keyed by the RPC URL itself (Anchor's convention for non-standard
+# clusters that are not one of localnet/devnet/testnet/mainnet).
+[programs."https://rpc.cookiescan.io"]
+family_wallet = "6apQZUxBwpBbFNiBpYzGeMBQJ8328xrrsQ3aRcQhM2Av"
+
 [provider]
+# Default stays devnet on purpose: Cookie Chain is a live network with a
+# real cost per deploy, so a plain `anchor deploy` should not be able to
+# hit it by accident. Deploy to Cookie Chain explicitly instead:
+#   anchor deploy --provider.cluster https://rpc.cookiescan.io --provider.wallet ~/.config/solana/id.json
 cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
-
-[hooks]

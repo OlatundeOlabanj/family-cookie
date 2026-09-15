@@ -90,7 +90,7 @@ export async function ensureAta(
 
 // --- Passkey (secp256r1) test helpers ---
 // Real P-256 signing, WebAuthn-shaped message construction, and
-// secp256r1 precompile instruction building — proven against real
+// secp256r1 precompile instruction building, proven against real
 // devnet transactions (contribute, withdraw, authorize_recurring_
 // delegate, cancel_recurring_delegate all verified working with these
 // helpers before they were moved here from standalone scripts).

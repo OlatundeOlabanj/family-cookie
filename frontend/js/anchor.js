@@ -159,11 +159,39 @@ export async function fundWalletAuthority({
   deviceRole = 0,
 }) {
   const mintPubkey = new web3.PublicKey(goalMint);
+  const isNativeWrap = mintPubkey.equals(splToken.NATIVE_MINT);
   const walletAuthorityPda = deriveWalletAuthorityPda(vaultPda, deviceRole);
   const sourceAta = splToken.getAssociatedTokenAddressSync(mintPubkey, walletHandle.publicKey);
   const destAta = splToken.getAssociatedTokenAddressSync(mintPubkey, walletAuthorityPda, true);
 
   const instructions = [];
+  const amountRaw = BigInt(Math.round(amountUi * 10 ** decimals));
+
+  // Wrapped-native mints (wSOL on Solana, wrapped-COOK on Cookie
+  // Chain, same sentinel address either way) don't hold a real SPL
+  // balance just because the wallet holds the native token - native
+  // balance has to be wrapped first: create the ATA if it doesn't
+  // exist, move real lamports into it, then syncNative so the SPL
+  // Token program's tracked `amount` reflects those lamports. Without
+  // this, the transfer below would move from an empty or nonexistent
+  // account even though the wallet is genuinely funded.
+  if (isNativeWrap) {
+    const sourceInfo = await connection.getAccountInfo(sourceAta);
+    if (!sourceInfo) {
+      instructions.push(
+        splToken.createAssociatedTokenAccountInstruction(walletHandle.publicKey, sourceAta, walletHandle.publicKey, mintPubkey)
+      );
+    }
+    instructions.push(
+      web3.SystemProgram.transfer({
+        fromPubkey: walletHandle.publicKey,
+        toPubkey: sourceAta,
+        lamports: amountRaw,
+      })
+    );
+    instructions.push(splToken.createSyncNativeInstruction(sourceAta));
+  }
+
   const destInfo = await connection.getAccountInfo(destAta);
   if (!destInfo) {
     instructions.push(
@@ -176,7 +204,6 @@ export async function fundWalletAuthority({
     );
   }
 
-  const amountRaw = BigInt(Math.round(amountUi * 10 ** decimals));
   instructions.push(
     splToken.createTransferCheckedInstruction(
       sourceAta,
@@ -195,6 +222,58 @@ export async function fundWalletAuthority({
 // --- Flow 3: contribute to a goal, passkey-authorized -----------------
 
 const CONTRIBUTE_BUSINESS_DATA_LEN = 10; // device_role:u8(1) + amount:u64(8) + decimals:u8(1)
+
+// Shared passkey-authorization pattern used by contribute,
+// authorize_recurring_delegate, and cancel_recurring_delegate: build a
+// placeholder instruction to compute the challenge hash, get a live
+// WebAuthn assertion bound to it, build the real instruction with the
+// real proof bytes, and send [precompile, action]. Factored out once
+// three instructions needed the exact same shape, so a mistake in this
+// security-critical sequence only has one place to happen.
+async function passkeyAuthorizedCall({
+  connection,
+  walletHandle,
+  credentialId,
+  rpId,
+  businessDataLen,
+  buildInstruction, // (authenticatorData: Buffer, clientDataJson: Buffer) => Promise<TransactionInstruction>
+  devicePubkeyBytes, // Uint8Array(33), the registered device pubkey this proof must verify against
+}) {
+  const placeholderIx = await buildInstruction(Buffer.from([]), Buffer.from([]));
+
+  // Final instruction order is fixed BEFORE hashing: the precompile
+  // slot must physically exist first, since hash_authorized_action's
+  // instruction index counting includes it even though its content is
+  // skipped.
+  const dummyPrecompileIx = new web3.TransactionInstruction({
+    programId: SECP256R1_PROGRAM_ID,
+    keys: [],
+    data: Buffer.alloc(0),
+  });
+
+  const unsignedTx = new web3.Transaction();
+  unsignedTx.feePayer = walletHandle.publicKey;
+  const { blockhash } = await connection.getLatestBlockhash("confirmed");
+  unsignedTx.recentBlockhash = blockhash;
+  unsignedTx.add(dummyPrecompileIx, placeholderIx);
+
+  const actionIndex = 1; // [precompile(0), action(1)]
+  const challengeHash = await computeChallengeHash(unsignedTx, actionIndex, businessDataLen);
+
+  const assertion = await getPasskeyAssertion({ rpId, credentialId, challengeHash });
+  const signedMessage = await buildSignedMessage(assertion.authenticatorData, assertion.clientDataJSON);
+
+  const precompileIx = buildSecp256r1Instruction({
+    compressedPubkey: devicePubkeyBytes,
+    signatureRaw: assertion.signatureRaw,
+    message: signedMessage,
+  });
+
+  const finalIx = await buildInstruction(Buffer.from(assertion.authenticatorData), Buffer.from(assertion.clientDataJSON));
+
+  const signature = await signAndSend(walletHandle, connection, [precompileIx, finalIx]);
+  return { signature };
+}
 
 export async function contributeToGoal({
   connection,
@@ -217,79 +296,152 @@ export async function contributeToGoal({
 
   const vaultAccount = await program.account.familyVault.fetch(vaultPda);
   const feeDestination = vaultAccount.feeDestination;
+  const devicePubkeyBytes =
+    deviceRole === 0 ? new Uint8Array(vaultAccount.primaryContributorDevice) : new Uint8Array(vaultAccount.partnerDevice);
 
   const amountRaw = new anchor.BN(Math.round(amountUi * 10 ** decimals));
 
-  // Placeholder proof bytes just to get a correctly account-resolved
-  // instruction for hashing - the first 18 bytes (8 discriminator + 10
-  // business-arg bytes) are identical to the final instruction, which
-  // is all hash_authorized_action ever reads for this instruction.
-  const placeholderContributeIx = await program.methods
-    .contribute(deviceRole, amountRaw, decimals, Buffer.from([]), Buffer.from([]))
-    .accounts({
-      payer: walletHandle.publicKey,
-      instructionsSysvar: web3.SYSVAR_INSTRUCTIONS_PUBKEY,
-      feeConfig: feeConfigPda,
-      vault: vaultPda,
-      goal: goalPda,
-      goalTokenAccount,
-      feeDestination,
-      contributorTokenAccount,
-      walletAuthority: walletAuthorityPda,
-      mint: mintPubkey,
-      tokenProgram: splToken.TOKEN_PROGRAM_ID,
-    })
-    .instruction();
+  const buildInstruction = (authenticatorData, clientDataJson) =>
+    program.methods
+      .contribute(deviceRole, amountRaw, decimals, authenticatorData, clientDataJson)
+      .accounts({
+        payer: walletHandle.publicKey,
+        instructionsSysvar: web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+        feeConfig: feeConfigPda,
+        vault: vaultPda,
+        goal: goalPda,
+        goalTokenAccount,
+        feeDestination,
+        contributorTokenAccount,
+        walletAuthority: walletAuthorityPda,
+        mint: mintPubkey,
+        tokenProgram: splToken.TOKEN_PROGRAM_ID,
+      })
+      .instruction();
 
-  // Final instruction order is fixed BEFORE hashing: the precompile
-  // slot must physically exist first, since hash_authorized_action's
-  // instruction index counting includes it even though its content is
-  // skipped: [precompileIx, contributeIx].
-  const dummyPrecompileIx = new web3.TransactionInstruction({
-    programId: SECP256R1_PROGRAM_ID,
-    keys: [],
-    data: Buffer.alloc(0),
+  return passkeyAuthorizedCall({
+    connection,
+    walletHandle,
+    credentialId,
+    rpId,
+    businessDataLen: CONTRIBUTE_BUSINESS_DATA_LEN,
+    buildInstruction,
+    devicePubkeyBytes,
   });
+}
 
-  const unsignedTx = new web3.Transaction();
-  unsignedTx.feePayer = walletHandle.publicKey;
-  const { blockhash } = await connection.getLatestBlockhash("confirmed");
-  unsignedTx.recentBlockhash = blockhash;
-  unsignedTx.add(dummyPrecompileIx, placeholderContributeIx);
+// --- Recurring contributions -------------------------------------------
 
-  const contributeIndex = 1; // [precompile(0), contribute(1)]
-  const challengeHash = await computeChallengeHash(unsignedTx, contributeIndex, CONTRIBUTE_BUSINESS_DATA_LEN);
+const AUTHORIZE_DELEGATE_BUSINESS_DATA_LEN = 18; // device_role(1) + amount_per_period(8) + frequency(1) + next_run_at(8)
+const CANCEL_DELEGATE_BUSINESS_DATA_LEN = 1; // device_role(1)
 
-  const assertion = await getPasskeyAssertion({ rpId, credentialId, challengeHash });
-  const signedMessage = await buildSignedMessage(assertion.authenticatorData, assertion.clientDataJSON);
+export function deriveDelegatePda(goalPda) {
+  return web3.PublicKey.findProgramAddressSync([Buffer.from("delegate"), goalPda.toBytes()], PROGRAM_PUBKEY)[0];
+}
 
-  const vaultDevicePubkey =
-    deviceRole === 0 ? vaultAccount.primaryContributorDevice : vaultAccount.partnerDevice;
-  const precompileIx = buildSecp256r1Instruction({
-    compressedPubkey: new Uint8Array(vaultDevicePubkey),
-    signatureRaw: assertion.signatureRaw,
-    message: signedMessage,
+export async function fetchRecurringDelegate(connection, walletHandle, goalPda) {
+  const program = getProgram(connection, walletHandle);
+  const delegatePda = deriveDelegatePda(goalPda);
+  try {
+    const account = await program.account.recurringContributionDelegate.fetch(delegatePda);
+    return { exists: true, delegatePda, account };
+  } catch {
+    return { exists: false, delegatePda, account: null };
+  }
+}
+
+export async function authorizeRecurring({
+  connection,
+  walletHandle,
+  vaultPda,
+  goalPda,
+  goalMint,
+  amountUi,
+  decimals,
+  frequency, // "weekly" | "monthly"
+  nextRunUnixSeconds,
+  credentialId,
+  rpId,
+  deviceRole = 0,
+}) {
+  const program = getProgram(connection, walletHandle);
+  const mintPubkey = new web3.PublicKey(goalMint);
+  const walletAuthorityPda = deriveWalletAuthorityPda(vaultPda, deviceRole);
+  const sourceTokenAccount = splToken.getAssociatedTokenAddressSync(mintPubkey, walletAuthorityPda, true);
+  const delegatePda = deriveDelegatePda(goalPda);
+
+  const vaultAccount = await program.account.familyVault.fetch(vaultPda);
+  const devicePubkeyBytes =
+    deviceRole === 0 ? new Uint8Array(vaultAccount.primaryContributorDevice) : new Uint8Array(vaultAccount.partnerDevice);
+
+  const amountRaw = new anchor.BN(Math.round(amountUi * 10 ** decimals));
+  const frequencyArg = frequency === "monthly" ? { monthly: {} } : { weekly: {} };
+  const nextRunArg = new anchor.BN(nextRunUnixSeconds);
+
+  const buildInstruction = (authenticatorData, clientDataJson) =>
+    program.methods
+      .authorizeRecurringDelegate(deviceRole, amountRaw, frequencyArg, nextRunArg, authenticatorData, clientDataJson)
+      .accounts({
+        payer: walletHandle.publicKey,
+        instructionsSysvar: web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+        vault: vaultPda,
+        goal: goalPda,
+        delegate: delegatePda,
+        sourceTokenAccount,
+        walletAuthority: walletAuthorityPda,
+        tokenProgram: splToken.TOKEN_PROGRAM_ID,
+        systemProgram: web3.SystemProgram.programId,
+      })
+      .instruction();
+
+  return passkeyAuthorizedCall({
+    connection,
+    walletHandle,
+    credentialId,
+    rpId,
+    businessDataLen: AUTHORIZE_DELEGATE_BUSINESS_DATA_LEN,
+    buildInstruction,
+    devicePubkeyBytes,
   });
+}
 
-  const finalContributeIx = await program.methods
-    .contribute(deviceRole, amountRaw, decimals, Buffer.from(assertion.authenticatorData), Buffer.from(assertion.clientDataJSON))
-    .accounts({
-      payer: walletHandle.publicKey,
-      instructionsSysvar: web3.SYSVAR_INSTRUCTIONS_PUBKEY,
-      feeConfig: feeConfigPda,
-      vault: vaultPda,
-      goal: goalPda,
-      goalTokenAccount,
-      feeDestination,
-      contributorTokenAccount,
-      walletAuthority: walletAuthorityPda,
-      mint: mintPubkey,
-      tokenProgram: splToken.TOKEN_PROGRAM_ID,
-    })
-    .instruction();
+export async function cancelRecurring({
+  connection,
+  walletHandle,
+  vaultPda,
+  goalPda,
+  credentialId,
+  rpId,
+  deviceRole = 0,
+}) {
+  const program = getProgram(connection, walletHandle);
+  const delegatePda = deriveDelegatePda(goalPda);
 
-  const signature = await signAndSend(walletHandle, connection, [precompileIx, finalContributeIx]);
-  return { signature };
+  const vaultAccount = await program.account.familyVault.fetch(vaultPda);
+  const devicePubkeyBytes =
+    deviceRole === 0 ? new Uint8Array(vaultAccount.primaryContributorDevice) : new Uint8Array(vaultAccount.partnerDevice);
+
+  const buildInstruction = (authenticatorData, clientDataJson) =>
+    program.methods
+      .cancelRecurringDelegate(deviceRole, authenticatorData, clientDataJson)
+      .accounts({
+        payer: walletHandle.publicKey,
+        instructionsSysvar: web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+        vault: vaultPda,
+        goal: goalPda,
+        delegate: delegatePda,
+      })
+      .instruction();
+
+  return passkeyAuthorizedCall({
+    connection,
+    walletHandle,
+    credentialId,
+    rpId,
+    businessDataLen: CANCEL_DELEGATE_BUSINESS_DATA_LEN,
+    buildInstruction,
+    devicePubkeyBytes,
+  });
 }
 
 // --- Reads -----------------------------------------------------------

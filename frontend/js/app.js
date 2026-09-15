@@ -1,4 +1,4 @@
-// App orchestration. Made by TJS Code
+// App orchestration (dashboard page). Made by TJS Code
 import { CLUSTERS, DEFAULT_CLUSTER, EXPECTED_ORIGIN, PROGRAM_ID } from "./config.js";
 import { discoverWallets } from "./wallet.js";
 import {
@@ -8,6 +8,9 @@ import {
   fetchGoal,
   fetchGoalBalance,
   fetchGoalActivity,
+  authorizeRecurring,
+  cancelRecurring,
+  fetchRecurringDelegate,
   describeTransactionError,
 } from "./anchor.js";
 
@@ -97,24 +100,40 @@ function checkOriginBanner() {
   }
 }
 
-// --- Cluster select ------------------------------------------------------
+// --- Network control (compact icon + menu, replaces the old dropdown) ---
 
-function populateClusterSelect() {
-  const select = el("cluster-select");
-  select.innerHTML = "";
+function populateNetworkMenu() {
+  const menu = el("network-menu");
+  menu.innerHTML = "";
   for (const [key, cfg] of Object.entries(CLUSTERS)) {
-    const opt = document.createElement("option");
-    opt.value = key;
-    opt.textContent = cfg.label;
-    select.appendChild(opt);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = cfg.label;
+    btn.className = key === state.clusterKey ? "active" : "";
+    btn.addEventListener("click", () => {
+      state.clusterKey = key;
+      state.connection = new web3.Connection(currentCluster().rpcUrl, "confirmed");
+      el("program-link").href = currentCluster().explorerAddressUrl(PROGRAM_ID);
+      menu.classList.add("hidden");
+      populateNetworkMenu();
+      resetFlowUI();
+      if (state.wallet) tryRestoreForCurrentWallet();
+    });
+    menu.appendChild(btn);
   }
-  select.value = state.clusterKey;
-  select.addEventListener("change", () => {
-    state.clusterKey = select.value;
-    state.connection = new web3.Connection(currentCluster().rpcUrl, "confirmed");
-    el("program-link").href = currentCluster().explorerAddressUrl(PROGRAM_ID);
-    resetFlowUI();
-    if (state.wallet) tryRestoreForCurrentWallet();
+}
+
+function setupNetworkControl() {
+  const btn = el("network-icon-btn");
+  const menu = el("network-menu");
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    menu.classList.toggle("hidden");
+  });
+  document.addEventListener("click", (e) => {
+    if (!menu.classList.contains("hidden") && !menu.contains(e.target) && e.target !== btn) {
+      menu.classList.add("hidden");
+    }
   });
 }
 
@@ -172,17 +191,24 @@ function onWalletConnected() {
   el("wallet-address").textContent = truncate(state.wallet.publicKey.toBase58());
   el("connect-btn").classList.add("hidden");
   el("disconnect-btn").classList.remove("hidden");
+  el("connect-placeholder").classList.add("hidden");
   el("app-main").classList.remove("hidden");
-  const bar = document.querySelector(".wallet-bar");
-  bar.classList.add("just-connected");
-  setTimeout(() => bar.classList.remove("just-connected"), 1600);
+  const bar = document.querySelector(".wallet-status");
+  if (bar) {
+    bar.classList.add("just-connected");
+    setTimeout(() => bar.classList.remove("just-connected"), 1600);
+  }
   tryRestoreForCurrentWallet();
 }
 
 function tryRestoreForCurrentWallet() {
   if (restore()) {
-    revealPostCreateSteps();
+    showGoalDashboard();
     refreshGoalDisplay();
+    refreshRecurringStatus();
+  } else {
+    el("step-create").classList.remove("hidden");
+    el("goal-dashboard").classList.add("hidden");
   }
 }
 
@@ -197,6 +223,7 @@ function disconnect() {
   el("wallet-address").textContent = "Not connected";
   el("connect-btn").classList.remove("hidden");
   el("disconnect-btn").classList.add("hidden");
+  el("connect-placeholder").classList.remove("hidden");
   el("app-main").classList.add("hidden");
   clearStatusBanner();
 }
@@ -204,34 +231,22 @@ function disconnect() {
 // --- Flow UI ------------------------------------------------------------
 
 function resetFlowUI() {
-  el("step-fund").classList.add("hidden");
-  el("step-contribute").classList.add("hidden");
-  el("goal-ledger").classList.add("hidden");
-  el("activity-panel").classList.add("hidden");
-  el("vault-details").classList.add("hidden");
   el("step-create").classList.remove("hidden");
-  el("step-create").classList.add("active");
+  el("goal-dashboard").classList.add("hidden");
 }
 
-function revealPostCreateSteps() {
-  el("step-fund").classList.remove("hidden");
-  el("step-contribute").classList.remove("hidden");
-  el("goal-ledger").classList.remove("hidden");
-  el("activity-panel").classList.remove("hidden");
-  el("vault-details").classList.remove("hidden");
-  el("step-create").classList.remove("active");
-  el("step-create").classList.add("done");
+function showGoalDashboard() {
+  el("step-create").classList.add("hidden");
+  el("goal-dashboard").classList.remove("hidden");
   el("detail-vault").textContent = state.vaultPda.toBase58();
   el("detail-goal").textContent = state.goalPda.toBase58();
   el("detail-goal-ata").textContent = state.goalTokenAccount.toBase58();
 }
 
-function setTxStatus(idPrefix, text, done = false) {
+function setTxStatus(idPrefix, text) {
   const box = el(`${idPrefix}-status`);
   box.classList.remove("hidden");
-  box.innerHTML = done
-    ? `<span>${text}</span>`
-    : `<span class="spinner"></span><span>${text}</span>`;
+  box.innerHTML = `<span class="spinner"></span><span>${text}</span>`;
 }
 function setTxLink(idPrefix, signature) {
   const box = el(`${idPrefix}-status`);
@@ -254,8 +269,9 @@ async function refreshGoalDisplay() {
     el("goal-currency-label").textContent = currentCluster().goalMintLabel;
     const pct = target > 0 ? Math.min(100, (current / target) * 100) : 0;
     el("goal-progress-fill").style.width = `${pct}%`;
+    el("goal-progress-badge").textContent = `${Math.round(pct)}% funded`;
   } catch (err) {
-    // Non-fatal - balance display just stays at its last known value.
+    // Non-fatal - display just stays at its last known value.
   }
   refreshActivity();
 }
@@ -267,6 +283,7 @@ async function refreshActivity() {
   try {
     const decimals = currentCluster().goalMintDecimals;
     const events = await fetchGoalActivity(state.connection, state.goalTokenAccount);
+    el("contribution-count").textContent = String(events.length);
     if (events.length === 0) {
       list.innerHTML = "";
       empty.classList.remove("hidden");
@@ -284,8 +301,121 @@ async function refreshActivity() {
       })
       .join("");
   } catch (err) {
-    // Non-fatal - the ledger balance above is the source of truth either way.
+    // Non-fatal - the progress readout above is the source of truth either way.
   }
+}
+
+// --- Recurring tab ---------------------------------------------------
+
+function frequencyLabel(freqEnum) {
+  if (freqEnum && freqEnum.monthly) return "Monthly";
+  if (freqEnum && freqEnum.weekly) return "Weekly";
+  return "Unknown";
+}
+
+async function refreshRecurringStatus() {
+  if (!state.goalPda) return;
+  try {
+    const result = await fetchRecurringDelegate(state.connection, state.wallet, state.goalPda);
+    const statusBox = el("recurring-status-box");
+    const setupForm = el("recurring-setup-form");
+    const cancelBtn = el("cancel-recurring-btn");
+    if (result.exists) {
+      const decimals = currentCluster().goalMintDecimals;
+      const amount = (Number(result.account.amountPerPeriod) / 10 ** decimals).toLocaleString();
+      el("recurring-amount").textContent = `${amount} ${currentCluster().goalMintLabel}`;
+      el("recurring-frequency").textContent = frequencyLabel(result.account.frequency);
+      el("recurring-next-run").textContent = new Date(Number(result.account.nextRunAt) * 1000).toLocaleString();
+      statusBox.classList.remove("hidden");
+      setupForm.classList.add("hidden");
+      cancelBtn.classList.remove("hidden");
+    } else {
+      statusBox.classList.add("hidden");
+      setupForm.classList.remove("hidden");
+      cancelBtn.classList.add("hidden");
+    }
+  } catch (err) {
+    // Non-fatal - leave whatever state was last shown.
+  }
+}
+
+async function handleAuthorizeRecurring() {
+  const amountUi = parseFloat(el("recurring-amount-input").value);
+  const frequency = el("recurring-frequency-input").value;
+  if (!Number.isFinite(amountUi) || amountUi <= 0) return showStatusBanner("warn", "Enter an amount per period greater than zero.");
+
+  const cluster = currentCluster();
+  const periodSeconds = frequency === "monthly" ? 30 * 24 * 60 * 60 : 7 * 24 * 60 * 60;
+  const nextRunUnixSeconds = Math.floor(Date.now() / 1000) + periodSeconds;
+
+  clearStatusBanner();
+  el("authorize-recurring-btn").disabled = true;
+  setTxStatus("recurring-tx", "Waiting for your browser's passkey prompt");
+
+  try {
+    const result = await authorizeRecurring({
+      connection: state.connection,
+      walletHandle: state.wallet,
+      vaultPda: state.vaultPda,
+      goalPda: state.goalPda,
+      goalMint: cluster.goalMint,
+      amountUi,
+      decimals: cluster.goalMintDecimals,
+      frequency,
+      nextRunUnixSeconds,
+      credentialId: state.credentialId,
+      rpId,
+    });
+    setTxLink("recurring-tx", result.signature);
+    refreshRecurringStatus();
+  } catch (err) {
+    const described = describeTransactionError(err);
+    showStatusBanner(described.kind === "rejected" ? "warn" : "error", described.message);
+    el("recurring-tx-status").classList.add("hidden");
+  } finally {
+    el("authorize-recurring-btn").disabled = false;
+  }
+}
+
+async function handleCancelRecurring() {
+  clearStatusBanner();
+  el("cancel-recurring-btn").disabled = true;
+  setTxStatus("recurring-tx", "Waiting for your browser's passkey prompt");
+
+  try {
+    const result = await cancelRecurring({
+      connection: state.connection,
+      walletHandle: state.wallet,
+      vaultPda: state.vaultPda,
+      goalPda: state.goalPda,
+      credentialId: state.credentialId,
+      rpId,
+    });
+    setTxLink("recurring-tx", result.signature);
+    refreshRecurringStatus();
+  } catch (err) {
+    const described = describeTransactionError(err);
+    showStatusBanner(described.kind === "rejected" ? "warn" : "error", described.message);
+    el("recurring-tx-status").classList.add("hidden");
+  } finally {
+    el("cancel-recurring-btn").disabled = false;
+  }
+}
+
+// --- Tabs ------------------------------------------------------------
+
+function setupTabs() {
+  const buttons = document.querySelectorAll(".tab-btn");
+  buttons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      buttons.forEach((b) => b.classList.remove("active"));
+      document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
+      btn.classList.add("active");
+      el(`tab-${btn.dataset.tab}`).classList.add("active");
+      if (btn.dataset.tab === "activity") refreshActivity();
+      if (btn.dataset.tab === "recurring") refreshRecurringStatus();
+    });
+  });
 }
 
 // --- Step handlers --------------------------------------------------------
@@ -322,8 +452,9 @@ async function handleCreate() {
     state.credentialId = result.credentialId;
     persist();
     setTxLink("create", result.signature);
-    revealPostCreateSteps();
+    showGoalDashboard();
     refreshGoalDisplay();
+    refreshRecurringStatus();
   } catch (err) {
     const described = describeTransactionError(err);
     showStatusBanner(described.kind === "rejected" ? "warn" : "error", described.message);
@@ -368,10 +499,9 @@ async function handleContribute() {
   const cluster = currentCluster();
   clearStatusBanner();
   el("contribute-btn").disabled = true;
-  setTxStatus("contribute", "Building transaction");
+  setTxStatus("contribute", "Waiting for your browser's passkey prompt");
 
   try {
-    setTxStatus("contribute", "Waiting for your browser's passkey prompt");
     const result = await contributeToGoal({
       connection: state.connection,
       walletHandle: state.wallet,
@@ -400,7 +530,9 @@ async function handleContribute() {
 
 function init() {
   checkOriginBanner();
-  populateClusterSelect();
+  populateNetworkMenu();
+  setupNetworkControl();
+  setupTabs();
   state.connection = new web3.Connection(currentCluster().rpcUrl, "confirmed");
   el("program-link").href = currentCluster().explorerAddressUrl(PROGRAM_ID);
 
@@ -420,6 +552,8 @@ function init() {
   el("create-btn").addEventListener("click", handleCreate);
   el("fund-btn").addEventListener("click", handleFund);
   el("contribute-btn").addEventListener("click", handleContribute);
+  el("authorize-recurring-btn").addEventListener("click", handleAuthorizeRecurring);
+  el("cancel-recurring-btn").addEventListener("click", handleCancelRecurring);
 }
 
 init();

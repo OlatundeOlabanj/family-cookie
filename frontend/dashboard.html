@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Family Cookie, Dashboard</title>
+<meta name="description" content="Create a savings goal, fund it, and contribute with a device passkey." />
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+<div class="app-shell">
+
+  <header class="app-header">
+    <a href="index.html" class="brand" style="text-decoration:none;">
+      <svg class="brand-mark" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect width="32" height="32" rx="9" fill="#1E2638"/>
+        <path d="M11 9h10l1 3.2v11.3a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V12.2L11 9z" fill="none" stroke="#F3F4F6" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M13 9V6.6a3 3 0 0 1 6 0V9" fill="none" stroke="#F3F4F6" stroke-width="2" stroke-linecap="round"/>
+        <path d="M10.5 18h11" stroke="#F3F4F6" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+      <div class="brand-text">
+        <span class="brand-name">Family Cookie</span>
+        <span class="brand-tag"><span id="status-dot" class="status-dot"></span> <span id="wallet-address">Not connected</span></span>
+      </div>
+    </a>
+    <div class="header-actions">
+      <div class="network-control">
+        <button id="network-icon-btn" class="network-icon-btn" aria-label="Network" aria-haspopup="true">
+          <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 8a7 7 0 0 1 14 0M5.5 8a4.5 4.5 0 0 1 9 0M8 8a2 2 0 0 1 4 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="10" cy="16" r="1.2" fill="currentColor"/></svg>
+        </button>
+        <div id="network-menu" class="network-menu hidden"></div>
+      </div>
+      <button id="connect-btn" class="btn-primary">
+        <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="6" width="16" height="11" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M2 9h16" stroke="currentColor" stroke-width="1.5"/><circle cx="14" cy="12.5" r="1" fill="currentColor"/><path d="M5 6V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1" stroke="currentColor" stroke-width="1.5"/></svg>
+        Connect
+      </button>
+      <button id="disconnect-btn" class="btn-icon hidden" aria-label="Disconnect">
+        <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 4H4v12h3M13 14l3-4-3-4M16 10H8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div id="origin-banner" class="banner banner-warn hidden">
+    <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 2 1 17h18L10 2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 8v4M10 14.2v.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    <span id="origin-banner-text"></span>
+  </div>
+
+  <div id="wallet-picker-panel" class="step hidden">
+    <div class="step-head"><span class="step-title">Choose a wallet</span></div>
+    <p class="step-desc" id="wallet-picker-desc">Nightly is required for this build. Other detected wallets are listed too.</p>
+    <div id="wallet-picker-list" class="wallet-picker"></div>
+  </div>
+
+  <div id="status-banner" class="hidden"></div>
+
+  <div id="connect-placeholder" class="connect-placeholder is-example">
+    Connect a wallet to see your goal, fund it, and contribute.
+  </div>
+
+  <main id="app-main" class="hidden">
+
+    <section id="step-create" class="step">
+      <div class="step-head">
+        <span class="step-number">Setup</span>
+        <span class="step-title">Create your vault and a goal</span>
+      </div>
+      <p class="step-desc">Registers a device passkey (a prompt from your browser or platform, not this site) and creates one savings goal on-chain. This demo registers a single device; the vault's partner-device slot is left unusable.</p>
+
+      <div class="field">
+        <label for="goal-name">Goal name</label>
+        <input id="goal-name" type="text" maxlength="32" placeholder="New laptop fund" />
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="goal-target">Target amount</label>
+          <input id="goal-target" type="number" min="0" step="0.01" placeholder="500" />
+        </div>
+        <div class="field">
+          <label for="goal-deadline">Deadline</label>
+          <input id="goal-deadline" type="date" />
+        </div>
+      </div>
+
+      <button id="create-btn" class="btn-primary btn-block">Register passkey and create goal</button>
+      <div id="create-status" class="tx-status hidden"></div>
+    </section>
+
+    <div id="goal-dashboard" class="hidden">
+      <div class="stat-strip">
+        <div>
+          <div class="stat-label">Goal progress</div>
+          <div class="stat-value"><span id="goal-current">0</span> / <span id="goal-target-readout">0</span> <span id="goal-currency-label"></span></div>
+          <span class="badge badge-progress" id="goal-progress-badge">0% funded</span>
+        </div>
+        <div>
+          <div class="stat-label">Contributions</div>
+          <div class="stat-value" id="contribution-count">0</div>
+          <span class="badge badge-success">All settled</span>
+        </div>
+        <div>
+          <div class="stat-label">Passkey</div>
+          <div class="stat-value">Registered</div>
+          <span class="badge badge-neutral">1 device</span>
+        </div>
+      </div>
+      <div class="progress-track"><div id="goal-progress-fill" class="progress-fill" style="width:0%"></div></div>
+
+      <div class="tab-row" role="tablist">
+        <button class="tab-btn active" data-tab="contribute" role="tab">Contribute</button>
+        <button class="tab-btn" data-tab="fund" role="tab">Fund wallet</button>
+        <button class="tab-btn" data-tab="activity" role="tab">Activity</button>
+        <button class="tab-btn" data-tab="recurring" role="tab">Recurring</button>
+      </div>
+
+      <div class="workspace">
+        <div class="workspace-main">
+
+          <section id="tab-contribute" class="tab-panel active">
+            <section class="step">
+              <div class="step-head">
+                <span class="step-title">Contribute to the goal</span>
+              </div>
+              <p class="step-desc">Moves funds from your holding account into the goal. Authorized by your device passkey, not by the connected wallet's own signature.</p>
+              <div class="field">
+                <label for="contribute-amount">Amount to contribute</label>
+                <input id="contribute-amount" type="number" min="0" step="0.01" placeholder="50" />
+              </div>
+              <button id="contribute-btn" class="btn-primary btn-block">Approve with passkey and contribute</button>
+              <div id="contribute-status" class="tx-status hidden"></div>
+            </section>
+          </section>
+
+          <section id="tab-fund" class="tab-panel">
+            <section class="step">
+              <div class="step-head">
+                <span class="step-title">Fund your wallet</span>
+              </div>
+              <p class="step-desc">Moves funds from your connected wallet into your family wallet's holding account. A standard wallet signature, no passkey needed for this step.</p>
+              <div class="field">
+                <label for="fund-amount">Amount</label>
+                <input id="fund-amount" type="number" min="0" step="0.01" placeholder="100" />
+              </div>
+              <button id="fund-btn" class="btn-primary btn-block">Fund wallet</button>
+              <div id="fund-status" class="tx-status hidden"></div>
+            </section>
+          </section>
+
+          <section id="tab-activity" class="tab-panel">
+            <div id="activity-panel" class="activity">
+              <div class="ledger-label">Contribution history</div>
+              <p class="activity-note">Read directly from the chain: real transactions into this goal's token account, not a summary or an estimate.</p>
+              <div id="activity-list" class="activity-list"></div>
+              <div id="activity-empty" class="activity-empty hidden">No contributions yet.</div>
+            </div>
+          </section>
+
+          <section id="tab-recurring" class="tab-panel">
+            <section class="step">
+              <div class="step-head">
+                <span class="step-title">Recurring contribution</span>
+              </div>
+              <p class="step-desc" id="recurring-desc">Authorizes an ongoing schedule that pulls from your holding account automatically. Setting it up needs your passkey once; cancelling it needs your passkey too.</p>
+
+              <div id="recurring-status-box" class="recurring-status hidden">
+                <div class="readout"><span class="k">Amount per period</span><span class="v mono" id="recurring-amount"></span></div>
+                <div class="readout"><span class="k">Frequency</span><span class="v mono" id="recurring-frequency"></span></div>
+                <div class="readout"><span class="k">Next run</span><span class="v mono" id="recurring-next-run"></span></div>
+              </div>
+
+              <div id="recurring-setup-form">
+                <div class="field-row">
+                  <div class="field">
+                    <label for="recurring-amount-input">Amount per period</label>
+                    <input id="recurring-amount-input" type="number" min="0" step="0.01" placeholder="25" />
+                  </div>
+                  <div class="field">
+                    <label for="recurring-frequency-input">Frequency</label>
+                    <select id="recurring-frequency-input">
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                    </select>
+                  </div>
+                </div>
+                <button id="authorize-recurring-btn" class="btn-primary btn-block">Approve with passkey and authorize</button>
+              </div>
+
+              <button id="cancel-recurring-btn" class="btn-secondary btn-block hidden">Approve with passkey and cancel</button>
+              <div id="recurring-tx-status" class="tx-status hidden"></div>
+            </section>
+          </section>
+
+        </div>
+
+        <aside class="workspace-side">
+          <section id="vault-details" class="step">
+            <div class="step-head"><span class="step-title">Vault details</span></div>
+            <div class="readout"><span class="k">Vault</span><span class="v mono" id="detail-vault"></span></div>
+            <div class="readout"><span class="k">Goal</span><span class="v mono" id="detail-goal"></span></div>
+            <div class="readout"><span class="k">Goal token account</span><span class="v mono" id="detail-goal-ata"></span></div>
+          </section>
+        </aside>
+      </div>
+    </div>
+
+  </main>
+
+  <footer class="app-footer">
+    <span>Made by TJS Code</span>
+    <a id="program-link" href="#" target="_blank" rel="noopener">Program on explorer</a>
+  </footer>
+
+</div>
+
+<script src="js/vendor/fw-buffer-shim.bundle.js"></script>
+<script src="js/vendor/fw-vendor.bundle.js"></script>
+<script src="js/idl.js"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
