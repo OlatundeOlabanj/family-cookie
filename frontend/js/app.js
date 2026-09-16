@@ -112,7 +112,10 @@ function populateNetworkMenu() {
     btn.className = key === state.clusterKey ? "active" : "";
     btn.addEventListener("click", () => {
       state.clusterKey = key;
-      state.connection = new web3.Connection(currentCluster().rpcUrl, "confirmed");
+      state.connection = new web3.Connection(currentCluster().rpcUrl, {
+        commitment: "confirmed",
+        wsEndpoint: currentCluster().wsUrl,
+      });
       el("program-link").href = currentCluster().explorerAddressUrl(PROGRAM_ID);
       menu.classList.add("hidden");
       populateNetworkMenu();
@@ -533,7 +536,10 @@ function init() {
   populateNetworkMenu();
   setupNetworkControl();
   setupTabs();
-  state.connection = new web3.Connection(currentCluster().rpcUrl, "confirmed");
+  state.connection = new web3.Connection(currentCluster().rpcUrl, {
+    commitment: "confirmed",
+    wsEndpoint: currentCluster().wsUrl,
+  });
   el("program-link").href = currentCluster().explorerAddressUrl(PROGRAM_ID);
 
   el("connect-btn").addEventListener("click", () => {

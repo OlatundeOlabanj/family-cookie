@@ -28,6 +28,13 @@ export const CLUSTERS = {
   cookiechain: {
     label: "Cookie Chain",
     rpcUrl: "https://rpc.cookiescan.io",
+    // Cookie Chain's WebSocket lives on a separate host from its RPC
+    // (confirmed from Cookie Chain's own developer docs), not derivable
+    // by the usual https-to-wss swap on the RPC hostname. Without this,
+    // @solana/web3.js silently guesses wss://rpc.cookiescan.io, which
+    // is wrong, and transaction confirmation/simulation can fail in
+    // confusing ways (e.g. wallet-side "ProgramAccountNotFound").
+    wsUrl: "wss://ws.cookiescan.io",
     // No bridged stablecoin exists on Cookie Chain; native COOK is the
     // only genuinely liquid currency, so goals are denominated in
     // wrapped-native COOK via the standard SVM native-mint sentinel.
