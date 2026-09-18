@@ -3,12 +3,14 @@
 // Made by TJS Code
 
 const { web3 } = window.FW_VENDOR;
-const { Buffer } = window;
 
 const CONNECT_FEATURES = ["standard:connect", "solana:connect"];
 const DISCONNECT_FEATURES = ["standard:disconnect", "solana:disconnect"];
 const SIGN_TX_FEATURES = ["standard:signTransaction", "solana:signTransaction"];
-const SIGN_AND_SEND_FEATURES = ["standard:signAndSendTransaction", "solana:signAndSendTransaction"];
+
+// NOTE: deliberately not using "standard:signAndSendTransaction" /
+// "solana:signAndSendTransaction" anywhere in this file. See the long
+// comment on WalletHandle.signAndSendTransaction() below for why.
 
 function firstFeature(wallet, keys) {
   for (const key of keys) {
@@ -21,7 +23,14 @@ function isSolanaCapable(wallet) {
   const chains = wallet.chains || [];
   const hasSolanaChain = chains.some((c) => c.startsWith("solana:"));
   const hasConnect = !!firstFeature(wallet, CONNECT_FEATURES);
-  const hasSign = !!firstFeature(wallet, SIGN_TX_FEATURES) || !!firstFeature(wallet, SIGN_AND_SEND_FEATURES);
+  // Only signTransaction is actually used to send anything (see
+  // signAndSendTransaction() below) — a wallet that can only
+  // sign-and-send-in-one-step isn't usable here, since that step is
+  // exactly what routes transactions to the wrong network for Cookie
+  // Chain. Require signTransaction explicitly rather than accepting
+  // either, so an incompatible wallet is filtered out at discovery time
+  // instead of failing later mid-transaction.
+  const hasSign = !!firstFeature(wallet, SIGN_TX_FEATURES);
   return hasSolanaChain && hasConnect && hasSign;
 }
 
@@ -60,23 +69,43 @@ class WalletHandle {
     this._account = null;
   }
 
-  // Signs and submits a Transaction, returns the base58 signature.
+  // Signs a Transaction and submits it via OUR OWN `connection`, then
+  // returns the base58 signature.
+  //
+  // IMPORTANT — do not "simplify" this back to using the Wallet
+  // Standard's "signAndSendTransaction" feature, even though Nightly
+  // exposes it and it looks like less code. That feature has the WALLET
+  // choose which RPC to broadcast to, via a `chain` id it's given —
+  // the `connection` argument below is irrelevant to that path, not a
+  // fallback for it.
+  //
+  // The Wallet Standard's chain enum only defines
+  // "solana:mainnet" / "solana:devnet" / "solana:testnet" /
+  // "solana:localnet". There is no standard chain id for Cookie Chain
+  // (or any other custom SVM network), so there is no correct value to
+  // pass as `chain` — any guess or fallback (a literal "solana:mainnet"
+  // was here before) can silently broadcast to the wrong network,
+  // regardless of what's selected in the wallet's own UI or what
+  // `connection` is configured for. That was confirmed to be the actual
+  // cause of contribute/withdraw/init working when called directly via
+  // Anchor (see scripts/test-cookiechain-direct.ts and
+  // scripts/test-cookiechain-walletlike.ts, both 100% successful against
+  // Cookie Chain) but misbehaving when routed through Nightly.
+  //
+  // Signing only, then sending via `connection.sendRawTransaction`,
+  // keeps the destination network fully determined by `connection`
+  // (i.e. by CLUSTERS in config.js) end to end, with no wallet-side
+  // routing in between.
   async signAndSendTransaction(transaction, connection) {
-    const sendFeature = firstFeature(this.raw, SIGN_AND_SEND_FEATURES);
-    const serialized = transaction.serialize({ requireAllSignatures: false, verifySignatures: false });
-
-    if (sendFeature) {
-      const chain = await resolveSolanaChain(this.raw);
-      const [result] = await sendFeature.feature.signAndSendTransaction({
-        account: this._account,
-        transaction: serialized,
-        chain,
-      });
-      return bytesToBase58(result.signature);
-    }
-
     const signFeature = firstFeature(this.raw, SIGN_TX_FEATURES);
-    if (!signFeature) throw new Error(`${this.name} does not expose a supported signing feature.`);
+    if (!signFeature) {
+      throw new Error(
+        `${this.name} does not expose a signTransaction feature. This app ` +
+        `requires it so transactions are submitted via Cookie Chain's own ` +
+        `RPC instead of being routed by the wallet.`
+      );
+    }
+    const serialized = transaction.serialize({ requireAllSignatures: false, verifySignatures: false });
     const [result] = await signFeature.feature.signTransaction({
       account: this._account,
       transaction: serialized,
@@ -93,20 +122,6 @@ class WalletHandle {
 function bytesToBase58Pubkey(account) {
   if (account.publicKey) return account.publicKey;
   throw new Error("Account has no publicKey bytes.");
-}
-
-function bytesToBase58(bytes) {
-  return window.FW_VENDOR.anchor.utils.bytes.bs58.encode(Buffer.from(bytes));
-}
-
-async function resolveSolanaChain(rawWallet) {
-  const chains = rawWallet.chains || [];
-  const solanaChain = chains.find((c) => c.startsWith("solana:"));
-  if (solanaChain) return solanaChain;
-  // Fall back to mainnet chain id string if the wallet didn't advertise one -
-  // most standard wallets accept this even when targeting devnet/custom RPCs,
-  // since the actual network is determined by the Connection used to send.
-  return "solana:mainnet";
 }
 
 // Discovers every Solana-capable Wallet Standard wallet currently

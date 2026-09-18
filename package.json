@@ -5,7 +5,9 @@
   "scripts": {
     "setup-wallets": "ts-node scripts/setup-test-wallets.ts",
     "check-funding": "ts-node scripts/check-funding.ts",
-    "test": "ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+    "test": "ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts",
+    "test:cookiechain-direct": "ts-node scripts/test-cookiechain-direct.ts",
+    "test:cookiechain-walletlike": "ts-node scripts/test-cookiechain-walletlike.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",
@@ -24,3 +26,4 @@
     "typescript": "^5.7.2"
   }
 }
+
