@@ -1,6 +1,6 @@
 // App orchestration (dashboard page). Made by TJS Code
 import { CLUSTERS, DEFAULT_CLUSTER, EXPECTED_ORIGIN, PROGRAM_ID } from "./config.js";
-import { discoverWallets } from "./wallet.js";
+import { discoverWallets, verifyConnectionGenesis } from "./wallet.js";
 import {
   createVaultAndGoal,
   fundWalletAuthority,
@@ -115,6 +115,9 @@ function populateNetworkMenu() {
       state.connection = new web3.Connection(currentCluster().rpcUrl, {
         commitment: "confirmed",
         wsEndpoint: currentCluster().wsUrl,
+      });
+      verifyConnectionGenesis(state.connection, currentCluster().expectedGenesisHash).then((ok) => {
+        if (!ok) console.error(`Connection genesis mismatch on ${currentCluster().label} — check config.js`);
       });
       el("program-link").href = currentCluster().explorerAddressUrl(PROGRAM_ID);
       menu.classList.add("hidden");
@@ -539,6 +542,9 @@ function init() {
   state.connection = new web3.Connection(currentCluster().rpcUrl, {
     commitment: "confirmed",
     wsEndpoint: currentCluster().wsUrl,
+  });
+  verifyConnectionGenesis(state.connection, currentCluster().expectedGenesisHash).then((ok) => {
+    if (!ok) console.error(`Connection genesis mismatch on ${currentCluster().label} — check config.js`);
   });
   el("program-link").href = currentCluster().explorerAddressUrl(PROGRAM_ID);
 

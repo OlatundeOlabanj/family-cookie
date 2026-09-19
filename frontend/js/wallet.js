@@ -8,9 +8,27 @@ const CONNECT_FEATURES = ["standard:connect", "solana:connect"];
 const DISCONNECT_FEATURES = ["standard:disconnect", "solana:disconnect"];
 const SIGN_TX_FEATURES = ["standard:signTransaction", "solana:signTransaction"];
 
+// The Wallet Standard's CAIP-style chain enum only defines these four.
+// Anything else a wallet reports in its own `chains` array is that
+// wallet's own non-standard identifier for a custom network it has
+// added (e.g. Cookie Chain) — see resolveNonStandardChain() below.
+const STANDARD_SOLANA_CHAINS = ["solana:mainnet", "solana:devnet", "solana:testnet", "solana:localnet"];
+
 // NOTE: deliberately not using "standard:signAndSendTransaction" /
 // "solana:signAndSendTransaction" anywhere in this file. See the long
 // comment on WalletHandle.signAndSendTransaction() below for why.
+
+// If a connected wallet self-reports a chain id outside the standard
+// four, that's very likely its own identifier for a custom SVM network
+// the user added (Cookie Chain, in our case) — return it so we can pass
+// it explicitly to signTransaction() instead of passing nothing and
+// leaving the wallet to guess/default internally. Returns null if the
+// wallet only reports standard chains (nothing to disambiguate) or
+// reports more than one non-standard chain (ambiguous, don't guess).
+function resolveNonStandardChain(chains) {
+  const nonStandard = (chains || []).filter((c) => !STANDARD_SOLANA_CHAINS.includes(c) && c.startsWith("solana:"));
+  return nonStandard.length === 1 ? nonStandard[0] : null;
+}
 
 function firstFeature(wallet, keys) {
   for (const key of keys) {
@@ -44,6 +62,10 @@ class WalletHandle {
     this.icon = standardWallet.icon || null;
     this.publicKey = null;
     this._account = null;
+    // Read once at construction, from whatever this wallet object
+    // actually reports right now — never hardcoded. See
+    // resolveNonStandardChain() above for why this matters.
+    this._chains = standardWallet.chains || [];
   }
 
   async connect({ silent = false } = {}) {
@@ -106,10 +128,25 @@ class WalletHandle {
       );
     }
     const serialized = transaction.serialize({ requireAllSignatures: false, verifySignatures: false });
-    const [result] = await signFeature.feature.signTransaction({
-      account: this._account,
-      transaction: serialized,
-    });
+
+    // If this wallet self-reports a single non-standard chain id (its
+    // own identifier for whatever custom network the user has added —
+    // Cookie Chain, presumably), pass it explicitly. Some wallets use
+    // this to decide which network to preview/simulate against before
+    // showing the approve dialog, even for a plain sign (not
+    // sign-and-send) request; leaving it unset lets the wallet fall
+    // back to whatever network it's internally defaulted to, which is
+    // exactly the class of bug this file already fixed once for the
+    // send path. We do NOT guess or hardcode a value here — only ever
+    // the wallet's own live self-report.
+    const chain = resolveNonStandardChain(this._chains);
+    const signInput = { account: this._account, transaction: serialized };
+    if (chain) signInput.chain = chain;
+    if (window?.console?.debug) {
+      console.debug("[wallet] signing with chain:", chain || "(none resolved — wallet reported only standard chains, or more than one non-standard chain)", "raw wallet.chains:", this._chains);
+    }
+
+    const [result] = await signFeature.feature.signTransaction(signInput);
     const signedTx = web3.Transaction.from(result.signedTransaction);
     const rawTx = signedTx.serialize();
     return await connection.sendRawTransaction(rawTx, { skipPreflight: false });
@@ -157,11 +194,37 @@ export function discoverWallets() {
 // Wraps the direct `window.nightly.solana` object (Nightly docs'
 // "Accessing the nightly object directly" fallback) into the same
 // WalletHandle-shaped interface used everywhere else.
+//
+// IMPORTANT: this used to hardcode chains as ["solana:mainnet",
+// "solana:devnet"] — a real bug, flagged in code review, now fixed.
+// That hardcoded list meant this shim actively lied about supporting
+// only mainnet/devnet, with no way to ever resolve Cookie Chain as a
+// non-standard chain id (see resolveNonStandardChain() above), even if
+// the legacy object had a way to tell us the real answer.
+//
+// We don't yet know Nightly's exact non-standard property name for
+// "what network is currently active" from documentation alone — the
+// candidates below are a best-effort guess at common patterns other
+// injected wallet objects use. If NONE of them exist on the live
+// object, `chains` falls back to empty, which is honest (we don't
+// know) rather than wrong (we do know, incorrectly).
+//
+// To find the real property: open devtools console on the app with
+// Nightly connected and run `window.nightly.solana` to inspect it, or
+// check the console.debug output this file now logs on every sign
+// attempt (see signAndSendTransaction above) — it prints exactly what
+// chains array a connected wallet is reporting.
 function wrapLegacyNightly(nightlySolana) {
+  const guessedChain =
+    nightlySolana.network ||
+    nightlySolana.chain ||
+    nightlySolana._network ||
+    null;
+
   const shim = {
     name: "Nightly",
     icon: null,
-    chains: ["solana:mainnet", "solana:devnet"],
+    chains: guessedChain ? [guessedChain] : [],
     features: nightlySolana.features || {},
   };
   return new WalletHandle(shim);
@@ -169,4 +232,30 @@ function wrapLegacyNightly(nightlySolana) {
 
 export function isWalletStandardAvailable() {
   return !!(window.FW_VENDOR && window.FW_VENDOR.getWallets);
+}
+
+// Sanity check on OUR OWN connection, not on what Nightly internally
+// believes (there's no standard way to ask a wallet that). Confirms
+// `connection` is actually talking to the genesis it claims to be,
+// catching config drift or a misconfigured RPC before any transaction
+// is built against it. Call once after constructing the Connection in
+// app.js, e.g.:
+//
+//   const ok = await verifyConnectionGenesis(state.connection, currentCluster().expectedGenesisHash);
+//   if (!ok) { /* show a banner, refuse to let the user proceed */ }
+//
+// `expectedGenesisHash` must be filled in per cluster in config.js. To
+// get Cookie Chain's real value, run once:
+//   curl -s https://rpc.cookiescan.io -X POST -H "Content-Type: application/json" \
+//     -d '{"jsonrpc":"2.0","id":1,"method":"getGenesisHash"}'
+// and hardcode the result. Left unset (null), this check is skipped
+// rather than silently comparing against a made-up value.
+export async function verifyConnectionGenesis(connection, expectedGenesisHash) {
+  if (!expectedGenesisHash) return true; // not configured yet — skip, don't fail closed on a guess
+  const actual = await connection.getGenesisHash();
+  const ok = actual === expectedGenesisHash;
+  if (!ok) {
+    console.error(`[wallet] connection genesis mismatch: expected ${expectedGenesisHash}, got ${actual}`);
+  }
+  return ok;
 }
