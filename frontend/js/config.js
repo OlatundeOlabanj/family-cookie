@@ -35,14 +35,6 @@ export const CLUSTERS = {
     // is wrong, and transaction confirmation/simulation can fail in
     // confusing ways (e.g. wallet-side "ProgramAccountNotFound").
     wsUrl: "wss://ws.cookiescan.io",
-    // Real Cookie Chain genesis hash, confirmed via getGenesisHash
-    // against rpc.cookiescan.io on 2026-09-19. Used by
-    // verifyConnectionGenesis() in wallet.js as a sanity check that
-    // `connection` is actually talking to Cookie Chain and not
-    // something misconfigured, silently pointed elsewhere. If Cookie
-    // Chain is ever redeployed with a new genesis, this needs updating
-    // or the check will start failing loudly (by design).
-    expectedGenesisHash: "9wDaBRDgArEUpvhHxGguNkwozsZh4UpGZB9o2EoEcBB2",
     // No bridged stablecoin exists on Cookie Chain; native COOK is the
     // only genuinely liquid currency, so goals are denominated in
     // wrapped-native COOK via the standard SVM native-mint sentinel.
@@ -50,7 +42,8 @@ export const CLUSTERS = {
     goalMintDecimals: 6,
     goalMintLabel: "COOK",
     explorerTxUrl: (sig) => `https://cookiescan.io/tx/${sig}`,
-    explorerAddressUrl: (addr) => `https://cookiescan.io/address/${addr}`,
+    explorerAddressUrl: (addr) => `https://cookiescan.io/address/${addr}`,,
+    expectedGenesisHash: "9wDaBRDgArEUpvhHxGguNkwozsZh4UpGZB9o2EoEcBB2"
   },
 };
 
