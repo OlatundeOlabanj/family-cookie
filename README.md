@@ -75,18 +75,57 @@ This was diagnosed as follows, not guessed at:
    wallet to sign, then submits the signed transaction itself through the
    app's own `connection`, which is confirmed correct by points 1 and 2
    above.
+4. A follow-up hypothesis, raised in code review: maybe the fix in point
+   3 is one layer short, the app still doesn't pass a `chain` value at
+   all to `signTransaction`, and some wallets use that value to decide
+   what to preview/simulate internally before showing the approve
+   dialog, even for a plain sign. Tested directly rather than argued
+   about: `wallet.js` now inspects the connected wallet's own live
+   `chains` array and passes through any single non-standard entry it
+   finds there, logging exactly what it sees on every sign attempt.
+   Confirmed via the browser console on a live, working deploy:
 
-After that fix, the failure persists, which means it is no longer inside
-this codebase. Nightly's own popup is failing its own simulation before
-our code is even reached, for a program proven live on the exact RPC
-endpoint Nightly's custom network is supposedly pointed at. The most
-likely remaining cause is a stale or malformed RPC URL bound to Nightly's
-"Cookie" custom network entry inside the extension itself, something no
-code change on this side can reach or fix.
+   ```
+   [wallet] signing with chain: (none resolved — wallet reported only
+   standard chains, or more than one non-standard chain)
+   raw wallet.chains: ['solana:mainnet', 'solana:mainnet-beta',
+   'solana:testnet', 'solana:devnet']
+   ```
+
+   Nightly's own Wallet Standard object reports exactly these four
+   standard cluster names, and only these four, regardless of which
+   custom network ("Cookie") is actually selected in its UI. There is no
+   fifth, Cookie-Chain-specific value anywhere in what Nightly exposes.
+   That closes this hypothesis with an answer rather than a shrug: there
+   is no correct `chain` value this app (or any dApp) could pass to
+   steer Nightly's internal simulation toward the right network, because
+   Nightly does not expose one through the API surface available to a
+   website. A `verifyConnectionGenesis()` check was still added as
+   defense-in-depth (confirms the app's own `connection` is genuinely
+   talking to Cookie Chain, comparing against its real genesis hash,
+   `9wDaBRDgArEUpvhHxGguNkwozsZh4UpGZB9o2EoEcBB2`), but it addresses a
+   different, narrower risk than the one being chased here.
+
+After that fix, and after the follow-up in point 4, the failure persists
+unchanged, which means it is no longer inside this codebase, and there is
+no further angle available to test from the dApp side. Nightly's own
+popup fails its own simulation before this code is even reached, for a
+program proven live on the exact RPC endpoint Nightly's custom network is
+supposedly pointed at, and Nightly gives this app no information about
+its internal network state to work with. The most likely remaining cause
+is inside Nightly's own handling of custom SVM networks, something no
+code change on this side can reach or fix. Other Cookie Chain
+submissions built around this same class of risk independently: Cookie
+Payouts notes that "wallets that broadcast through their own RPC would
+send the transaction to Solana, where it never lands", and Cookie Bakery
+notes "a wallet-side send would land on the wrong chain" for the same
+reason, so this is a known shape of problem across more than one team
+building on Cookie Chain through Nightly, not an isolated one.
 
 This is being raised directly with Nightly and in the Cookie Chain
-Telegram, with the two diagnostic scripts and the four working signatures
-attached as proof that the program and the RPC endpoint are not at fault.
+Telegram, with the two diagnostic scripts, the four working signatures,
+and the console output above attached as proof that the program, the RPC
+endpoint, and the app's own signing logic are not at fault.
 
 ## Architecture
 
