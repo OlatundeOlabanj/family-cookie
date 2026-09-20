@@ -221,10 +221,19 @@ function wrapLegacyNightly(nightlySolana) {
     nightlySolana._network ||
     null;
 
+  // IMPORTANT: chains must never be empty here, even when guessedChain
+  // is unknown — an empty array fails isSolanaCapable()'s
+  // hasSolanaChain check above and silently removes Nightly from the
+  // wallet list entirely (a real regression, caught in testing).
+  // "solana:mainnet" is used ONLY as a safe placeholder to keep
+  // discovery working; resolveNonStandardChain() treats it as a
+  // standard chain and ignores it, so it can never be mistakenly used
+  // as a real chain id when signing — that still only happens when
+  // guessedChain resolves to something real.
   const shim = {
     name: "Nightly",
     icon: null,
-    chains: guessedChain ? [guessedChain] : [],
+    chains: guessedChain ? [guessedChain] : ["solana:mainnet"],
     features: nightlySolana.features || {},
   };
   return new WalletHandle(shim);
