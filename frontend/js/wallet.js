@@ -9,10 +9,14 @@ const DISCONNECT_FEATURES = ["standard:disconnect", "solana:disconnect"];
 const SIGN_TX_FEATURES = ["standard:signTransaction", "solana:signTransaction"];
 
 // The Wallet Standard's CAIP-style chain enum only defines these four.
-// Anything else a wallet reports in its own `chains` array is that
-// wallet's own non-standard identifier for a custom network it has
-// added (e.g. Cookie Chain) — see resolveNonStandardChain() below.
-const STANDARD_SOLANA_CHAINS = ["solana:mainnet", "solana:devnet", "solana:testnet", "solana:localnet"];
+// "solana:mainnet-beta" is not part of that enum, but is a long-standing
+// alternate name Solana tooling has used for mainnet — included here so
+// it's correctly recognized as standard, not mistaken for a genuine
+// custom-network identifier. Confirmed necessary: Nightly's real wallet
+// object reports exactly these four standard names and nothing else,
+// even when its custom Cookie Chain network is the one actually active
+// (checked directly in devtools, not assumed) — see resolveNonStandardChain().
+const STANDARD_SOLANA_CHAINS = ["solana:mainnet", "solana:mainnet-beta", "solana:devnet", "solana:testnet", "solana:localnet"];
 
 // NOTE: deliberately not using "standard:signAndSendTransaction" /
 // "solana:signAndSendTransaction" anywhere in this file. See the long
