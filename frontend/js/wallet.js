@@ -247,6 +247,21 @@ export function isWalletStandardAvailable() {
   return !!(window.FW_VENDOR && window.FW_VENDOR.getWallets);
 }
 
+// Tells "no wallet extension at all" apart from "a wallet is present but
+// isn't passing the Solana-capability filter" (missing chains, missing a
+// required feature, etc). Without this, both cases produce the same empty
+// discoverWallets() list and look identical to the user — see Cookie
+// Bakery's own documented warning about exactly this failure mode with
+// their VITE_WALLET_CHAIN filter, same root shape of problem here.
+export function hasAnyInjectedWallet() {
+  if (isWalletStandardAvailable()) {
+    const { getWallets } = window.FW_VENDOR;
+    const { get } = getWallets();
+    if (get().length > 0) return true;
+  }
+  return !!(window.nightly && window.nightly.solana);
+}
+
 // Sanity check on OUR OWN connection, not on what Nightly internally
 // believes (there's no standard way to ask a wallet that). Confirms
 // `connection` is actually talking to the genesis it claims to be,

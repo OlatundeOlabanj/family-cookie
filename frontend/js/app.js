@@ -1,6 +1,6 @@
 // App orchestration (dashboard page). Made by TJS Code
 import { CLUSTERS, DEFAULT_CLUSTER, EXPECTED_ORIGIN, PROGRAM_ID } from "./config.js";
-import { discoverWallets, verifyConnectionGenesis } from "./wallet.js";
+import { discoverWallets, verifyConnectionGenesis, hasAnyInjectedWallet } from "./wallet.js";
 import {
   createVaultAndGoal,
   fundWalletAuthority,
@@ -149,8 +149,13 @@ function renderWalletPicker(handles) {
   const list = el("wallet-picker-list");
   list.innerHTML = "";
   if (handles.length === 0) {
-    el("wallet-picker-desc").textContent =
-      "No Wallet Standard wallet detected. This build requires Nightly - install it from nightly.app and reload.";
+    // Distinguish "nothing installed" from "something's installed but
+    // doesn't report what this app needs" — otherwise both show the exact
+    // same empty state, which looks like Nightly is missing even when it
+    // isn't, and there's nothing the user can act on differently.
+    el("wallet-picker-desc").textContent = hasAnyInjectedWallet()
+      ? "A wallet extension is installed, but it isn't reporting the Solana capabilities this app needs. If that's Nightly, try reconnecting or check its network settings, or install Nightly from nightly.app if it's a different wallet."
+      : "No Wallet Standard wallet detected. This build requires Nightly - install it from nightly.app and reload.";
     el("wallet-picker-panel").classList.remove("hidden");
     return;
   }
